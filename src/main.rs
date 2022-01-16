@@ -18,10 +18,32 @@ fn ray_color(r: &Ray) -> Color {
     let white = Color::new(1.0, 1.0, 1.0);
     let skyblue = Color::new(0.5, 0.7, 1.0);
 
+    let shpere_center = Point3::new(0.0, 0.0, -1.0);
+
+    let t = hit_sphere(&shpere_center, 0.5, r);
+    if t > 0.0 {
+        let n = (r.at(t) - shpere_center).normalize_or_zero();
+        return 0.5*Color::from(n + Vec3::ONE);
+    }
+
     let unit_dir = r.dir.normalize_or_zero();
     let t = 0.5 * (unit_dir.y + 1.0);
 
     (1.0 - t) * white + t * skyblue
+}
+
+fn hit_sphere(center: &Point3, radius: f32, r: &Ray) -> f32 {
+    let oc = r.orig - *center;
+    let a = r.dir.length_squared();
+    let half_b = Vec3::dot(oc, r.dir);
+    let c = oc.length_squared() - radius * radius;
+    let discriminant = half_b * half_b - a * c;
+
+    if discriminant < 0.0 {
+        -1.0
+    } else {
+        (-half_b - discriminant.sqrt()) / a
+    }
 }
 
 fn main() {
