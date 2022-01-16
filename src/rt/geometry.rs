@@ -8,10 +8,7 @@ pub struct Sphere {
 
 impl Sphere {
     pub fn new(center: Point3, radius: f32) -> Sphere {
-        Sphere {
-            center: center,
-            radius: radius,
-        }
+        Sphere { center, radius }
     }
 }
 
@@ -37,11 +34,10 @@ impl Hittable for Sphere {
             }
         }
 
-        let p = r.at(root);
-        return Some(Hit {
-            t: root,
-            point: p,
-            normal: ((p - self.center) / self.radius).normalize_or_zero(),
-        });
+        let hit = Hit::new(r.at(root), root);
+        let outward_normal = ((hit.point - self.center) / self.radius).normalize_or_zero();
+        return Some(
+            hit.orient_hit_normal(outward_normal, r),
+        );
     }
 }

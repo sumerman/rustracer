@@ -1,5 +1,6 @@
 mod hittable;
-pub mod sphere;
+mod hittable_list;
+pub mod geometry;
 
-pub use hittable::Hittable;
-pub use hittable::Hit;
+pub use hittable::*;
+pub use hittable_list::HittableList;

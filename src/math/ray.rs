@@ -6,8 +6,8 @@ pub struct Ray {
 }
 
 impl Ray {
-    pub fn new(o: Point3, d: Vec3) -> Ray {
-        Ray {orig: o, dir: d}
+    pub fn new(orig: Point3, dir: Vec3) -> Ray {
+        Ray {orig, dir}
     }
 
     pub fn at(&self, t: f32) -> Point3 {

@@ -4,8 +4,9 @@ mod rt;
 
 use color_output::*;
 use math::*;
-use std::io::{self, Write};
+use rt::geometry;
 use rt::Hittable;
+use std::io::{self, Write};
 
 fn report_progress(scanline: u32) {
     eprint!(
@@ -16,14 +17,12 @@ fn report_progress(scanline: u32) {
     io::stderr().flush().unwrap();
 }
 
-fn ray_color(r: &Ray) -> Color {
+fn ray_color<T: Hittable>(r: &Ray, world: &T) -> Color {
     let dark_gray = Color::new(0.1, 0.1, 0.1);
     let skyblue = Color::new(0.5, 0.7, 1.0);
 
-    let sphere = rt::sphere::Sphere::new(Point3::new(0.0, 0.0, -1.0), 0.5);
-
-    if let Some(hit) = sphere.hit(r, -10.0, 10.0) {
-        return 0.5*Color::from(hit.normal + Vec3::ONE);
+    if let Some(hit) = world.hit(r, 0.0, f32::INFINITY) {
+        return 0.5 * Color::from(hit.normal + Vec3::ONE);
     }
 
     let unit_dir = r.dir.normalize_or_zero();
@@ -33,11 +32,19 @@ fn ray_color(r: &Ray) -> Color {
 }
 
 fn main() {
+    // Image
     let aspect_ratio = 16.0 / 9.0;
     let image_width = 1080u32;
     let image_height = (image_width as f32 / aspect_ratio) as u32;
     let mut img_buf = OutputImage::new(image_width, image_height);
 
+    // World
+    let world = rt::HittableList::new(vec![
+        Box::new(geometry::Sphere::new(Point3::new(0.0, 0.0, -1.0), 0.5)),
+        Box::new(geometry::Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0)),
+    ]);
+
+    // Camera
     let viewport_height = 2.0;
     let viewport_width = aspect_ratio * viewport_height;
     let focal_len = 1.0;
@@ -47,6 +54,7 @@ fn main() {
     let vertical = Vec3::Y * viewport_height;
     let lower_left_corener = origin - horizontal / 2.0 - vertical / 2.0 - Vec3::Z * focal_len;
 
+    // Render
     for j in 0..image_height {
         let scanline = image_height - j - 1;
         report_progress(scanline);
@@ -58,7 +66,7 @@ fn main() {
                 origin,
                 lower_left_corener + u * horizontal + v * vertical - origin,
             );
-            let color = ray_color(&r);
+            let color = ray_color(&r, &world);
             output_color(img_buf.get_pixel_mut(i, scanline), color);
         }
     }
