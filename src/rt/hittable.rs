@@ -14,26 +14,20 @@ pub struct Hit {
 }
 
 impl Hit {
-    pub fn new(point: Point3, t: f32) -> Self {
+    pub fn new(point: Point3, normal: Vec3, t: f32) -> Self {
         Hit {
             point,
             t,
             face: Face::Front,
-            normal: Vec3::ONE,
+            normal: normal,
         }
     }
 
-    pub fn orient_hit_normal(mut self, outward_normal: Vec3, r: &Ray) -> Self {
-        self.face = if Vec3::dot(r.dir, outward_normal) < 0.0 {
-            Face::Front
-        } else {
-            Face::Back
-        };
-        self.normal = if self.face == Face::Front {
-            outward_normal
-        } else {
-            -outward_normal
-        };
+    pub fn orient_hit_normal(mut self, r: &Ray) -> Self {
+        if Vec3::dot(r.dir, self.normal) >= 0.0 {
+            self.face = Face::Back;
+            self.normal *= -1.0;
+        }
 
         self
     }
@@ -41,4 +35,21 @@ impl Hit {
 
 pub trait Hittable {
     fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit>;
+}
+
+impl Hittable for [Box<dyn Hittable>] {
+    fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit> {
+        let mut final_hit = None;
+        let mut closest_hit = t_max;
+
+        for o in self {
+            let current_hit = o.hit(r, t_min, closest_hit);
+            if let Some(ref hit) = current_hit {
+                closest_hit = hit.t;
+                final_hit = current_hit;
+            }
+        }
+
+        final_hit
+    }
 }

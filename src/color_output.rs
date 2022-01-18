@@ -1,12 +1,12 @@
-pub type ImagePixel = image::Rgb<u8>;
-pub type OutputImage = image::RgbImage;
+use image::*;
 
-pub type Color = glam::Vec3;
+pub type ImagePixel = Rgb<u8>;
+pub type OutputImage = RgbImage;
+
+pub type Color = glam::Vec3A;
 
 pub fn output_color(px: &mut ImagePixel, c: Color) {
-    fn f32_to_u8(v: f32) -> u8 {
-        (v.clamp(0.0, 0.999) * 256.0) as u8
-    }
+    let int_clr = c.clamp(Color::ZERO, Color::ONE - 0.0001) * 256.0;
 
-    *px = image::Rgb([f32_to_u8(c.x), f32_to_u8(c.y), f32_to_u8(c.z)])
+    *px = image::Rgb([int_clr.x as u8, int_clr.y as u8, int_clr.z as u8])
 }

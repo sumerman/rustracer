@@ -25,19 +25,16 @@ impl Hittable for Sphere {
         }
 
         let sqrtd = discriminant.sqrt();
-        let root = (-half_b - sqrtd) / a;
 
-        if root < t_min || t_max < root {
-            let root = (-half_b + sqrtd) / a;
-            if root < t_min || t_max < root {
-                return None;
+        for &root_t in &[(-half_b - sqrtd) / a, (-half_b + sqrtd) / a] {
+            if t_min <= root_t && root_t <= t_max {
+                let point = r.at(root_t);
+                let outward_normal = ((point - self.center) / self.radius).normalize_or_zero();
+                let hit = Hit::new(point, outward_normal, root_t);
+                return Some(hit.orient_hit_normal(r));
             }
         }
 
-        let hit = Hit::new(r.at(root), root);
-        let outward_normal = ((hit.point - self.center) / self.radius).normalize_or_zero();
-        return Some(
-            hit.orient_hit_normal(outward_normal, r),
-        );
+        return None;
     }
 }
