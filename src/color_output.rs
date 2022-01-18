@@ -1,12 +1,15 @@
 use image::*;
 
-pub type ImagePixel = Rgb<u8>;
-pub type OutputImage = RgbImage;
+pub type ImagePixel = Rgb<u16>;
+pub type OutputImage = ImageBuffer<ImagePixel, Vec<u16>>;
 
 pub type Color = glam::Vec3A;
 
-pub fn output_color(px: &mut ImagePixel, c: Color) {
-    let int_clr = c.clamp(Color::ZERO, Color::ONE - 0.0001) * 256.0;
+const GAMMA: f32 = 2.0;
 
-    *px = image::Rgb([int_clr.x as u8, int_clr.y as u8, int_clr.z as u8])
+pub fn output_color(px: &mut ImagePixel, c: Color) {
+    let gamma_corrected = c.powf(1.0 / GAMMA);
+    let int_clr = gamma_corrected.clamp(Color::ZERO, Color::ONE - 0.001) * u16::MAX as f32;
+
+    *px = image::Rgb([int_clr.x as u16, int_clr.y as u16, int_clr.z as u16])
 }

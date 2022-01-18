@@ -29,7 +29,7 @@ impl Hittable for Sphere {
         for &root_t in &[(-half_b - sqrtd) / a, (-half_b + sqrtd) / a] {
             if t_min <= root_t && root_t <= t_max {
                 let point = r.at(root_t);
-                let outward_normal = ((point - self.center) / self.radius).normalize_or_zero();
+                let outward_normal = (point - self.center) / self.radius;
                 let hit = Hit::new(point, outward_normal, root_t);
                 return Some(hit.orient_hit_normal(r));
             }

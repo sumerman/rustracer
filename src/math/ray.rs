@@ -1,5 +1,6 @@
 use super::*;
 
+#[derive(Copy, Clone)]
 pub struct Ray {
     pub orig: Point3,
     pub dir: Vec3,

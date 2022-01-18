@@ -4,7 +4,7 @@ mod rt;
 
 use color_output::*;
 use math::*;
-use rand::distributions::Uniform;
+use rand::distributions::Standard as StandardDist;
 use rand::prelude::*;
 use rt::geometry;
 use rt::*;
@@ -19,22 +19,31 @@ fn report_progress(scanline: u32) {
     io::stderr().flush().unwrap();
 }
 
-fn ray_color<T: Hittable + ?Sized>(r: &Ray, world: &T) -> Color {
-    let dark_gray = Color::new(0.1, 0.1, 0.1);
+fn ray_color<T: Hittable + ?Sized>(mut r: Ray, world: &T, rng: &mut impl Rng) -> Color {
+    let white = Color::splat(1.0);
     let skyblue = Color::new(0.5, 0.7, 1.0);
+    let mut color = Color::ONE;
+    let mut bounces = 0;
 
-    if let Some(hit) = world.hit(r, 0.0, f32::INFINITY) {
-        return 0.5 * Color::from(hit.normal + Vec3::ONE);
+    while let Some(hit) = world.hit(&r, 0.001, f32::INFINITY) {
+        let target = hit.normal + random_on_unit_sphere(rng);
+        r = Ray::new(hit.point, target);
+        color *= 0.5;
+        bounces += 1;
+
+        if bounces > 50 {
+            return Color::ZERO;
+        }
     }
 
     let unit_dir = r.dir.normalize_or_zero();
     let t = 0.5 * (unit_dir.y + 1.0);
+    let env_color = white.lerp(skyblue, t);
 
-    (1.0 - t) * dark_gray + t * skyblue
+    color * env_color
 }
 
 fn main() {
-    let random_distribution = Uniform::from(0.0..1.0);
     let mut rng = SmallRng::from_entropy();
 
     // Image
@@ -66,14 +75,14 @@ fn main() {
             let mut r: Ray;
 
             for _ in 0..samples_per_pixel {
-                let u =
-                    (i as f32 + random_distribution.sample(&mut rng)) 
-                    / (image_width - 1) as f32;
-                let v =
-                    (j as f32 + random_distribution.sample(&mut rng)) 
-                    / (image_height - 1) as f32;
+                let u_offset: f32 = rng.sample(StandardDist);
+                let v_offset: f32 = rng.sample(StandardDist);
+
+                let u = (i as f32 + u_offset) / (image_width - 1) as f32;
+                let v = (j as f32 + v_offset) / (image_height - 1) as f32;
+
                 r = camera.get_ray(u, v);
-                color += ray_color(&r, world.as_slice());
+                color += ray_color(r, world.as_slice(), &mut rng);
             }
             output_color(img_buf.get_pixel_mut(i, scanline), color * color_scale);
         }
