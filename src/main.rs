@@ -19,46 +19,13 @@ fn report_progress(scanline: u32) {
     io::stderr().flush().unwrap();
 }
 
-fn ray_color<T: Hittable + ?Sized>(mut r: Ray, world: &T, rng: &mut impl Rng) -> Color {
-    let white = Color::splat(1.0);
-    let skyblue = Color::new(0.5, 0.7, 1.0);
-    let mut color = Color::ONE;
-    let mut bounces = 0;
-
-    while let Some(hit) = world.hit(&r, 0.001, f32::INFINITY) {
-        if let Some(MaterialResponse {
-            attenuation: a,
-            new_ray,
-        }) = hit.material.scatter(&r, &hit, rng)
-        {
-            color = attenuate(color, *a);
-            r = new_ray;
-        } else {
-            color = Color::ZERO;
-            break;
-        }
-
-        bounces += 1;
-        if bounces > 50 {
-            color = Color::ZERO;
-            break;
-        }
-    }
-
-    let unit_dir = r.dir.normalize_or_zero();
-    let t = 0.5 * (unit_dir.y + 1.0);
-    let env_color = white.lerp(skyblue, t);
-
-    color * env_color
-}
-
 fn main() {
     let mut rng = SmallRng::from_entropy();
 
     // Image
     let aspect_ratio = 16.0 / 9.0;
-    let samples_per_pixel = 64;
-    let image_width = 1080u32;
+    let samples_per_pixel = 16;
+    let image_width = 1280u32;
     let image_height = (image_width as f32 / aspect_ratio) as u32;
     let mut img_buf = OutputImage::new(image_width, image_height);
 
