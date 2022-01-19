@@ -6,6 +6,7 @@ use color_output::*;
 use math::*;
 use rand::distributions::Standard as StandardDist;
 use rand::prelude::*;
+use rayon::prelude::*;
 use rt::geometry;
 use rt::*;
 use std::io::{self, Write};
@@ -20,14 +21,13 @@ fn report_progress(scanline: u32) {
 }
 
 fn main() {
-    let mut rng = SmallRng::from_entropy();
+    // let mut rng = SmallRng::from_entropy();
 
     // Image
     let aspect_ratio = 16.0 / 9.0;
     let samples_per_pixel = 16;
     let image_width = 1280u32;
     let image_height = (image_width as f32 / aspect_ratio) as u32;
-    let mut img_buf = OutputImage::new(image_width, image_height);
 
     // World
     let mat_ground = rt::Material::Lambertian {
@@ -72,15 +72,18 @@ fn main() {
 
     // Render
     let color_scale = 1.0 / samples_per_pixel as f32;
-    for j in 0..image_height {
+
+    let mut data_buf: Vec<Subpixel> = Vec::with_capacity((image_height * image_width) as usize);
+    (0..image_height).for_each(|j| {
         let scanline = image_height - j - 1;
         if scanline % 10 == 0 {
             report_progress(scanline);
         }
 
-        for i in 0..image_width {
+        data_buf.par_extend((0..image_width).into_par_iter().flat_map_iter(|i| {
             let mut color = Color::ZERO;
             let mut r: Ray;
+            let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
 
             for _ in 0..samples_per_pixel {
                 let u_offset: f32 = rng.sample(StandardDist);
@@ -92,10 +95,11 @@ fn main() {
                 r = camera.get_ray(u, v);
                 color += ray_color(r, world.as_slice(), &mut rng);
             }
-            output_color(img_buf.get_pixel_mut(i, scanline), color * color_scale);
-        }
-    }
+            output_color(color * color_scale)
+        }))
+    });
 
-    img_buf.save("output.png").unwrap();
+    let image = OutputImage::from_vec(image_width, image_height, data_buf).unwrap();
+    image.save("output.png").unwrap();
     eprintln!("\nDone!");
 }
