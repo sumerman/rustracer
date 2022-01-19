@@ -1,14 +1,16 @@
 use super::hittable::*;
+use super::material::*;
 use crate::math::*;
 
 pub struct Sphere {
     center: Point3,
     radius: f32,
+    material: Material,
 }
 
 impl Sphere {
-    pub fn new(center: Point3, radius: f32) -> Sphere {
-        Sphere { center, radius }
+    pub fn new(center: Point3, radius: f32, material: Material) -> Sphere {
+        Sphere { center, radius, material }
     }
 }
 
@@ -30,11 +32,11 @@ impl Hittable for Sphere {
             if t_min <= root_t && root_t <= t_max {
                 let point = r.at(root_t);
                 let outward_normal = (point - self.center) / self.radius;
-                let hit = Hit::new(point, outward_normal, root_t);
+                let hit = Hit::new(point, outward_normal, &self.material, root_t);
                 return Some(hit.orient_hit_normal(r));
             }
         }
 
-        return None;
+        None
     }
 }

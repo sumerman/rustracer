@@ -26,13 +26,22 @@ fn ray_color<T: Hittable + ?Sized>(mut r: Ray, world: &T, rng: &mut impl Rng) ->
     let mut bounces = 0;
 
     while let Some(hit) = world.hit(&r, 0.001, f32::INFINITY) {
-        let target = hit.normal + random_on_unit_sphere(rng);
-        r = Ray::new(hit.point, target);
-        color *= 0.5;
-        bounces += 1;
+        if let Some(MaterialResponse {
+            attenuation: a,
+            new_ray,
+        }) = hit.material.scatter(&r, &hit, rng)
+        {
+            color = attenuate(color, *a);
+            r = new_ray;
+        } else {
+            color = Color::ZERO;
+            break;
+        }
 
+        bounces += 1;
         if bounces > 50 {
-            return Color::ZERO;
+            color = Color::ZERO;
+            break;
         }
     }
 
@@ -54,9 +63,41 @@ fn main() {
     let mut img_buf = OutputImage::new(image_width, image_height);
 
     // World
+    let mat_ground = rt::Material::Lambertian {
+        albedo: Color::new(0.8, 0.8, 0.0),
+    };
+    let mat_center = rt::Material::Lambertian {
+        albedo: Color::new(0.7, 0.3, 0.3),
+    };
+    let mat_left = rt::Material::Metallic {
+        albedo: Color::new(0.8, 0.8, 0.8),
+        roughness: 0.3,
+    };
+    let mat_right = rt::Material::Metallic {
+        albedo: Color::new(0.8, 0.6, 0.2),
+        roughness: 1.0,
+    };
     let world: Vec<Box<dyn Hittable>> = vec![
-        Box::new(geometry::Sphere::new(Point3::new(0.0, 0.0, -1.0), 0.5)),
-        Box::new(geometry::Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0)),
+        Box::new(geometry::Sphere::new(
+            Point3::new(0.0, -100.5, -1.0),
+            100.0,
+            mat_ground,
+        )),
+        Box::new(geometry::Sphere::new(
+            Point3::new(0.0, 0.0, -1.0),
+            0.5,
+            mat_center,
+        )),
+        Box::new(geometry::Sphere::new(
+            Point3::new(-1.0, 0.0, -1.0),
+            0.5,
+            mat_left,
+        )),
+        Box::new(geometry::Sphere::new(
+            Point3::new(1.0, 0.0, -1.0),
+            0.5,
+            mat_right,
+        )),
     ];
 
     // Camera

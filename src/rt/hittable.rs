@@ -1,4 +1,5 @@
 use crate::math::*;
+use super::material::*;
 
 #[derive(PartialEq)]
 pub enum Face {
@@ -6,20 +7,22 @@ pub enum Face {
     Back,
 }
 
-pub struct Hit {
+pub struct Hit<'a> {
     pub point: Point3,
     pub normal: Vec3,
     pub face: Face,
     pub t: f32,
+    pub material: &'a Material,
 }
 
-impl Hit {
-    pub fn new(point: Point3, normal: Vec3, t: f32) -> Self {
+impl Hit<'_> {
+    pub fn new(point: Point3, normal: Vec3, material: &'_ Material, t: f32) -> Hit<'_> {
         Hit {
             point,
             t,
             face: Face::Front,
-            normal: normal,
+            normal,
+            material,
         }
     }
 
