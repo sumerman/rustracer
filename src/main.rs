@@ -68,7 +68,7 @@ fn main() {
         )),
         Box::new(geometry::Sphere::new(
             Point3::new(-1.0, 0.0, -1.0),
-            -0.4,
+            -0.45,
             mat_left.clone(),
         )),
         Box::new(geometry::Sphere::new(
@@ -79,7 +79,14 @@ fn main() {
     ];
 
     // Camera
-    let camera = Camera::new(Point3::ZERO, aspect_ratio);
+    let camera = Camera::new(
+        // Point3::new(3.0, 3.0, 2.0),
+        Point3::splat(0.0),
+        -Point3::Z,
+        Point3::Y,
+        90.0,
+        aspect_ratio,
+    );
 
     // Render
     let color_scale = 1.0 / samples_per_pixel as f32;
