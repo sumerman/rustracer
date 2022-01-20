@@ -11,8 +11,18 @@ pub struct MaterialResponse<'a> {
 
 #[derive(Clone)]
 pub enum Material {
-    Lambertian { albedo: Color },
-    Metallic { albedo: Color, roughness: f32 },
+    Lambertian {
+        albedo: Color,
+    },
+    Metallic {
+        albedo: Color,
+        roughness: f32,
+    },
+    Dielectric {
+        albedo: Color,
+        roughness: f32,
+        ior: f32,
+    },
 }
 
 impl Material {
@@ -39,6 +49,32 @@ impl Material {
                 } else {
                     None
                 }
+            }
+            Material::Dielectric {
+                albedo,
+                roughness,
+                ior,
+            } => {
+                let refraction_ratio = if hit.face == Face::Front {
+                    1.0 / ior
+                } else {
+                    *ior
+                };
+                let (refracted, reflectance, valid) =
+                    refract(r_in.dir.normalize_or_zero(), hit.normal, refraction_ratio);
+                let scattered = if !valid || reflectance > rng.sample(rand::distributions::Standard)
+                {
+                    reflect(r_in.dir.normalize_or_zero(), hit.normal)
+                        + *roughness * random_on_unit_sphere(rng)
+                } else if *roughness > 0.0 {
+                    refracted + *roughness * random_on_unit_sphere(rng)
+                } else {
+                    refracted
+                };
+                Some(MaterialResponse {
+                    new_ray: Ray::new(hit.point, scattered),
+                    attenuation: albedo,
+                })
             }
         }
     }

@@ -31,3 +31,24 @@ pub fn reflect(v: Vec3, n: Vec3) -> Vec3 {
 pub fn near_zero(v: Vec3) -> bool {
     v.cmplt(Vec3::splat(1.0e-8)).all()
 }
+
+// Schlick reflectance approximation.
+#[inline(always)]
+fn reflectance(cosine: f32, ref_idx: f32) -> f32 {
+    let r0 = (1.0 - ref_idx) / (1.0 + ref_idx);
+    let r0 = r0 * r0;
+    r0 + (1.0 - r0) * f32::powi(1.0 - cosine, 5)
+}
+
+#[inline(always)]
+pub fn refract(r_in: Vec3, n: Vec3, etai_over_etat: f32) -> (Vec3, f32, bool) {
+    let cos_theta = f32::min(Vec3::dot(-r_in, n), 1.0);
+    let sin_theta = f32::sqrt(1.0 - cos_theta * cos_theta);
+    let r_out_perp = etai_over_etat * (r_in + cos_theta * n);
+    let r_out_parallel = -f32::sqrt(f32::abs(1.0 - r_out_perp.length_squared())) * n;
+    (
+        r_out_perp + r_out_parallel,
+        reflectance(cos_theta, etai_over_etat),
+        etai_over_etat * sin_theta <= 1.0,
+    )
+}

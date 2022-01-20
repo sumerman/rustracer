@@ -34,15 +34,21 @@ fn main() {
         albedo: Color::new(0.8, 0.8, 0.0),
     };
     let mat_center = rt::Material::Lambertian {
-        albedo: Color::new(0.7, 0.3, 0.3),
+        // albedo: Color::new(0.7, 0.3, 0.3), // red-ish
+        albedo: Color::new(0.1, 0.2, 0.5),
     };
-    let mat_left = rt::Material::Metallic {
-        albedo: Color::new(0.8, 0.8, 0.8),
-        roughness: 0.3,
+    // let mat_left = rt::Material::Metallic {
+    //     albedo: Color::new(0.8, 0.8, 0.8),
+    //     roughness: 0.3,
+    // };
+    let mat_left = rt::Material::Dielectric {
+        albedo: Color::splat(0.98),
+        roughness: 0.005,
+        ior: 1.5,
     };
     let mat_right = rt::Material::Metallic {
         albedo: Color::new(0.8, 0.6, 0.2),
-        roughness: 1.0,
+        roughness: 0.03,
     };
     let world: Vec<Box<dyn Hittable>> = vec![
         Box::new(geometry::Sphere::new(
@@ -58,7 +64,12 @@ fn main() {
         Box::new(geometry::Sphere::new(
             Point3::new(-1.0, 0.0, -1.0),
             0.5,
-            mat_left,
+            mat_left.clone(),
+        )),
+        Box::new(geometry::Sphere::new(
+            Point3::new(-1.0, 0.0, -1.0),
+            -0.4,
+            mat_left.clone(),
         )),
         Box::new(geometry::Sphere::new(
             Point3::new(1.0, 0.0, -1.0),
