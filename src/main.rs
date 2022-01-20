@@ -73,30 +73,35 @@ fn main() {
     // Render
     let color_scale = 1.0 / samples_per_pixel as f32;
 
+    let j_step = 50;
     let mut data_buf: Vec<Subpixel> = Vec::with_capacity((image_height * image_width) as usize);
-    (0..image_height).for_each(|j| {
-        let scanline = image_height - j - 1;
-        if scanline % 10 == 0 {
-            report_progress(scanline);
-        }
 
-        data_buf.par_extend((0..image_width).into_par_iter().flat_map_iter(|i| {
-            let mut color = Color::ZERO;
-            let mut r: Ray;
-            let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
+    (0..image_height).step_by(j_step).for_each(|jst| {
+        let jst_upper = u32::min(jst + j_step as u32, image_height);
+        report_progress(image_height - jst_upper);
 
-            for _ in 0..samples_per_pixel {
-                let u_offset: f32 = rng.sample(StandardDist);
-                let v_offset: f32 = rng.sample(StandardDist);
+        data_buf.par_extend((jst..jst_upper).into_par_iter().flat_map(|j| {
+            (0..image_width)
+                .into_par_iter()
+                .map(move |i| (i, j)) // move j and only j
+                .flat_map_iter(|(i, j)| {
+                    let mut color = Color::ZERO;
+                    let mut r: Ray;
+                    let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
 
-                let u = (i as f32 + u_offset) / (image_width - 1) as f32;
-                let v = (j as f32 + v_offset) / (image_height - 1) as f32;
+                    for _ in 0..samples_per_pixel {
+                        let u_offset: f32 = rng.sample(StandardDist);
+                        let v_offset: f32 = rng.sample(StandardDist);
 
-                r = camera.get_ray(u, v);
-                color += ray_color(r, world.as_slice(), &mut rng);
-            }
-            output_color(color * color_scale)
-        }))
+                        let u = (i as f32 + u_offset) / (image_width - 1) as f32;
+                        let v = (j as f32 + v_offset) / (image_height - 1) as f32;
+
+                        r = camera.get_ray(u, v);
+                        color += ray_color(r, world.as_slice(), &mut rng);
+                    }
+                    output_color(color * color_scale)
+                })
+        }));
     });
 
     let image = OutputImage::from_vec(image_width, image_height, data_buf).unwrap();
