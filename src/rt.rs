@@ -23,7 +23,7 @@ pub fn ray_color<T: Hittable + ?Sized>(mut r: Ray, world: &T, rng: &mut impl Rng
             new_ray,
         }) = hit.material.scatter(&r, &hit, rng)
         {
-            color = attenuate(color, *a);
+            color = attenuate(color, a);
             r = new_ray;
         } else {
             color = Color::ZERO;
