@@ -19,11 +19,12 @@ impl Camera {
         fov: f32,
         aspect_ratio: f32,
         aperture: f32,
+        focus_dist: Option<f32>,
     ) -> Self {
         let h = f32::tan(f32::to_radians(fov / 2.0));
         let viewport_height = 2.0 * h;
         let viewport_width = aspect_ratio * viewport_height;
-        let focus_dist = Vec3::length(origin - lookat);
+        let focus_dist = focus_dist.unwrap_or_else(|| Vec3::length(origin - lookat));
 
         let w = Vec3::normalize_or_zero(origin - lookat);
         let u = Vec3::normalize_or_zero(Vec3::cross(vup, w));
