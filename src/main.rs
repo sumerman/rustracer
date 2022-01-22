@@ -80,12 +80,13 @@ fn main() {
 
     // Camera
     let camera = Camera::new(
-        // Point3::new(3.0, 3.0, 2.0),
-        Point3::splat(0.0),
+        Point3::new(3.0, 3.0, 2.0),
+        // Point3::splat(0.0),
         -Point3::Z,
         Point3::Y,
-        90.0,
+        20.0,
         aspect_ratio,
+        2.0,
     );
 
     // Render
@@ -114,7 +115,7 @@ fn main() {
                         let u = (i as f32 + u_offset) / (image_width - 1) as f32;
                         let v = (j as f32 + v_offset) / (image_height - 1) as f32;
 
-                        r = camera.get_ray(u, v);
+                        r = camera.get_ray(u, v, &mut rng);
                         color += ray_color(r, world.as_slice(), &mut rng);
                     }
                     output_color(color * color_scale)

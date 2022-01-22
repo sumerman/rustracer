@@ -19,6 +19,17 @@ pub fn random_on_unit_sphere(rng: &mut impl Rng) -> Vec3 {
     random_vec3(rng, -1.0, 1.0).normalize_or_zero()
 }
 
+pub fn random_in_unit_disk(rng: &mut impl Rng) -> Vec3 {
+    loop {
+        let values: [f32; 2] = rng.sample(rand::distributions::Standard);
+        let vec = Vec3::new(values[0], values[1], 0.0);
+        if vec.length_squared() >= 1.0 {
+            continue;
+        }
+        return vec;
+    }
+}
+
 #[inline(always)]
 pub fn attenuate(v1: Vec3, v2: Vec3) -> Vec3 {
     Vec3::new(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z)
