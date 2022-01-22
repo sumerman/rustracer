@@ -31,7 +31,7 @@ pub fn reflect(v: Vec3, n: Vec3) -> Vec3 {
 
 #[inline(always)]
 pub fn near_zero(v: Vec3) -> bool {
-    v.cmplt(Vec3::splat(1.0e-8)).all()
+    v.abs_diff_eq(Vec3::splat(0.0), 1e-8)
 }
 
 // Schlick reflectance approximation.
