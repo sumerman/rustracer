@@ -4,7 +4,7 @@ mod rt;
 
 use color_output::*;
 use math::*;
-use rand::distributions::{Standard as StandardDist};
+use rand::distributions::Standard as StandardDist;
 use rand::prelude::*;
 use rayon::prelude::*;
 use rt::geometry;
@@ -89,26 +89,101 @@ fn random_scene(rng: &mut impl Rng) -> Vec<geometry::Sphere> {
     world
 }
 
+fn crystal_ball(rng: &mut impl Rng) -> Vec<geometry::Sphere> {
+    let mut world = Vec::new();
+
+    let mat_ground = rt::Material::Lambertian {
+        albedo: Color::splat(0.3),
+    };
+    world.push(geometry::Sphere::new(
+        Point3::new(0.0, -1004.0, 0.0),
+        1000.0,
+        mat_ground,
+    ));
+
+    let mat1 = rt::Material::Dielectric {
+        albedo: Color::new(0.7, 0.0, 0.9),
+        roughness: 0.08,
+        ior: 1.5,
+    };
+    world.push(geometry::Sphere::new(
+        Point3::new(0.0, 0.0, -1.0),
+        4.0,
+        mat1,
+    ));
+
+    let center = Point3::new(0.0, 0.0, -1.0);
+    let n = 24;
+    for _ in 0..2*(n * n) {
+        let mat_prob: f32 = rng.sample(StandardDist);
+        let random_unit_vec = random_on_unit_sphere(rng);
+
+        let mat = if mat_prob < 0.8 {
+            rt::Material::Metallic {
+                albedo: Color::from(random_vec3(rng, 0.1, 1.0)),
+                roughness: 0.5 * rng.sample::<f32, _>(StandardDist),
+            }
+        } else {
+            rt::Material::Dielectric {
+                albedo: Color::splat(0.95),
+                roughness: 0.01,
+                ior: 1.5,
+            }
+        };
+
+        world.push(geometry::Sphere::new(
+            center + random_unit_vec * 55.0,
+            0.32,
+            mat.clone(),
+        ));
+    }
+    for _ in 0..5 * n {
+        let mat_prob: f32 = rng.sample(StandardDist);
+        let sphere_offset: f32 = 2.0 + rng.sample::<f32, _>(StandardDist) * 1.5;
+        let random_unit_vec = random_on_unit_sphere(rng);
+
+        let mat = if mat_prob < 0.5 {
+            rt::Material::Metallic {
+                albedo: Color::from(random_vec3(rng, 0.5, 1.0)),
+                roughness: 0.5 * rng.sample::<f32, _>(StandardDist),
+            }
+        } else {
+            rt::Material::Dielectric {
+                albedo: Color::splat(0.95),
+                roughness: 0.01,
+                ior: 1.5,
+            }
+        };
+
+        world.push(geometry::Sphere::new(
+            center + random_unit_vec * sphere_offset,
+            0.1,
+            mat.clone(),
+        ));
+    }
+    world
+}
+
 fn main() {
     // Image
-    let aspect_ratio = 3.0 / 2.0;
-    let samples_per_pixel = 256;
-    let image_width = 1200u32;
+    let aspect_ratio = 16.0 / 9.0;
+    let samples_per_pixel = 512;
+    let image_width = 1280u32;
     let image_height = (image_width as f32 / aspect_ratio) as u32;
 
     // World
     let mut world_rng = SmallRng::seed_from_u64(0xEDADBEEF);
-    let world = random_scene(&mut world_rng);
+    let world = crystal_ball(&mut world_rng);
 
     // Camera
     let camera = Camera::new(
-        Point3::new(13.0, 2.0, 3.0),
+        Point3::new(0.0, 0.0, 6.0),
         Point3::ZERO,
         Point3::Y,
-        20.0,
+        75.0,
         aspect_ratio,
-        0.1,
-        Some(10.0),
+        0.25,
+        Some(6.0),
     );
 
     // Render

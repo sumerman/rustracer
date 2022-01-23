@@ -12,8 +12,8 @@ use crate::math::*;
 use rand::prelude::*;
 
 pub fn ray_color<T: Hittable + ?Sized>(mut r: Ray, world: &T, rng: &mut impl Rng) -> Color {
-    let white = Color::splat(1.0);
-    let skyblue = Color::new(0.5, 0.7, 1.0);
+    let white = Color::splat(0.8);
+    let skyblue = Color::new(0.0, 0.1, 0.5);
     let mut color = Color::ONE;
     let mut bounces = 0;
 
@@ -38,7 +38,7 @@ pub fn ray_color<T: Hittable + ?Sized>(mut r: Ray, world: &T, rng: &mut impl Rng
     }
 
     let unit_dir = r.dir.normalize_or_zero();
-    let t = 0.5 * (unit_dir.y + 1.0);
+    let t = 0.55 * (unit_dir.y + 1.0);
     let env_color = white.lerp(skyblue, t);
 
     color * env_color
