@@ -4,7 +4,6 @@ mod rt;
 
 use color_output::*;
 use math::*;
-use rand::distributions::{Standard as StandardDist};
 use rand::prelude::*;
 use rayon::prelude::*;
 use rt::geometry;
@@ -20,18 +19,18 @@ fn report_progress(scanline: u32) {
     io::stderr().flush().unwrap();
 }
 
-fn random_scene(rng: &mut impl Rng) -> Vec<geometry::Sphere> {
+fn random_scene(rng: &mut impl Rng) -> Vec<Box<dyn Hittable>> {
     let n = 22;
-    let mut world = Vec::with_capacity(n);
+    let mut world: Vec<Box<dyn Hittable>> = Vec::with_capacity(n);
 
     let mat_ground = rt::Material::Lambertian {
         albedo: Color::splat(0.5),
     };
-    world.push(geometry::Sphere::new(
+    world.push(Box::new(geometry::sphere(
         Point3::new(0.0, -1000.0, 0.0),
         1000.0,
         mat_ground,
-    ));
+    )));
 
     let upper_m: i64 = n as i64 / 2;
     let lower_m: i64 = -upper_m;
@@ -61,7 +60,17 @@ fn random_scene(rng: &mut impl Rng) -> Vec<geometry::Sphere> {
                 }
             };
 
-            world.push(geometry::Sphere::new(center, 0.2, mat));
+            if mat_prob < 0.8 {
+                let center2 =
+                    center + Vec3::new(0.0, rng.sample::<f32, _>(StandardDist) * 0.5, 0.0);
+                world.push(Box::new(geometry::moving_sphere(
+                    geometry::sphere(center, 0.2, mat),
+                    center2,
+                    0.0..1.0,
+                )));
+            } else {
+                world.push(Box::new(geometry::sphere(center, 0.2, mat)));
+            }
         }
     }
 
@@ -70,30 +79,38 @@ fn random_scene(rng: &mut impl Rng) -> Vec<geometry::Sphere> {
         roughness: 0.01,
         ior: 1.5,
     };
-    world.push(geometry::Sphere::new(Point3::new(0.0, 1.0, 0.0), 1.0, mat1));
+    world.push(Box::new(geometry::sphere(
+        Point3::new(0.0, 1.0, 0.0),
+        1.0,
+        mat1,
+    )));
 
     let mat2 = rt::Material::Lambertian {
         albedo: Color::new(0.4, 0.2, 0.1),
     };
-    world.push(geometry::Sphere::new(
+    world.push(Box::new(geometry::sphere(
         Point3::new(-4.0, 1.0, 0.0),
         1.0,
         mat2,
-    ));
+    )));
 
     let mat3 = rt::Material::Metallic {
         albedo: Color::new(0.7, 0.6, 0.5),
         roughness: 0.01,
     };
-    world.push(geometry::Sphere::new(Point3::new(4.0, 1.0, 0.0), 1.0, mat3));
+    world.push(Box::new(geometry::sphere(
+        Point3::new(4.0, 1.0, 0.0),
+        1.0,
+        mat3,
+    )));
     world
 }
 
 fn main() {
     // Image
-    let aspect_ratio = 3.0 / 2.0;
-    let samples_per_pixel = 256;
-    let image_width = 1200u32;
+    let aspect_ratio = 16.0 / 9.0;
+    let samples_per_pixel = 128;
+    let image_width = 1280u32;
     let image_height = (image_width as f32 / aspect_ratio) as u32;
 
     // World
@@ -107,6 +124,7 @@ fn main() {
         Point3::Y,
         20.0,
         aspect_ratio,
+        0.0..1.0,
         0.1,
         Some(10.0),
     );

@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use super::hittable::*;
 use super::material::*;
 use crate::math::*;
@@ -8,9 +10,25 @@ pub struct Sphere {
     material: Material,
 }
 
-impl Sphere {
-    pub fn new(center: Point3, radius: f32, material: Material) -> Sphere {
-        Sphere { center, radius, material }
+pub struct MovingSphere {
+    center1: Point3,
+    sphere: Sphere,
+    time_interval: Range<f32>,
+}
+
+pub fn sphere(center: Point3, radius: f32, material: Material) -> Sphere {
+    Sphere {
+        center,
+        radius,
+        material,
+    }
+}
+
+pub fn moving_sphere(sphere: Sphere, center1: Point3, time_interval: Range<f32>) -> MovingSphere {
+    MovingSphere {
+        sphere,
+        center1,
+        time_interval,
     }
 }
 
@@ -38,5 +56,31 @@ impl Hittable for Sphere {
         }
 
         None
+    }
+}
+
+impl Hittable for MovingSphere {
+    fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit> {
+        let motion = match *self {
+            MovingSphere {
+                time_interval:
+                    Range {
+                        start: time0,
+                        end: time1,
+                    },
+                sphere:
+                    Sphere {
+                        center,
+                        radius: _,
+                        material: _,
+                    },
+                center1,
+            } => ((r.time - time0) / (time1 - time0)) * (center1 - center),
+        };
+
+        let r1 = Ray::new(r.orig - motion, r.dir, r.time);
+        self.sphere
+            .hit(&r1, t_min, t_max)
+            .map(|h| Hit::new(h.point + motion, h.normal + motion, h.material, h.t))
     }
 }

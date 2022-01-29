@@ -35,7 +35,7 @@ impl Material {
                     scatter_dir = hit.normal;
                 }
                 Some(MaterialResponse {
-                    new_ray: Ray::new(hit.point, scatter_dir),
+                    new_ray: Ray::new(hit.point, scatter_dir, r_in.time),
                     attenuation: *albedo,
                 })
             }
@@ -45,7 +45,7 @@ impl Material {
                 let f = reflectance(cos_theta, *albedo);
                 if Vec3::dot(reflected, hit.normal) >= 0.0 {
                     Some(MaterialResponse {
-                        new_ray: Ray::new(hit.point, reflected + *roughness * random_unit_vec),
+                        new_ray: Ray::new(hit.point, reflected + *roughness * random_unit_vec, r_in.time),
                         attenuation: f
                     })
                 } else {
@@ -74,7 +74,7 @@ impl Material {
                     };
 
                 Some(MaterialResponse {
-                    new_ray: Ray::new(hit.point, scattered),
+                    new_ray: Ray::new(hit.point, scattered, r_in.time),
                     attenuation: color,
                 })
             }
