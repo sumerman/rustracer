@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use super::aabb::*;
 use super::hittable::*;
 use super::material::*;
 use crate::math::*;
@@ -57,6 +58,13 @@ impl Hittable for Sphere {
 
         None
     }
+
+    fn bounding_box(&self, _time_interval: Range<f32>) -> Option<Aabb> {
+        Some(Aabb {
+            min: self.center - Vec3::splat(self.radius),
+            max: self.center + Vec3::splat(self.radius),
+        })
+    }
 }
 
 impl Hittable for MovingSphere {
@@ -82,5 +90,15 @@ impl Hittable for MovingSphere {
         self.sphere
             .hit(&r1, t_min, t_max)
             .map(|h| Hit::new(h.point + motion, h.normal + motion, h.material, h.t))
+    }
+
+    fn bounding_box(&self, time_interval: Range<f32>) -> Option<Aabb> {
+        let offest_aabb = Aabb {
+            min: self.center1 - Vec3::splat(self.sphere.radius),
+            max: self.center1 + Vec3::splat(self.sphere.radius),
+        };
+        self.sphere
+            .bounding_box(time_interval)
+            .map(|aabb| aabb.surrounding_box(offest_aabb))
     }
 }

@@ -63,13 +63,15 @@ fn random_scene(rng: &mut impl Rng) -> Vec<Box<dyn Hittable>> {
             if mat_prob < 0.8 {
                 let center2 =
                     center + Vec3::new(0.0, rng.sample::<f32, _>(StandardDist) * 0.5, 0.0);
-                world.push(Box::new(geometry::moving_sphere(
-                    geometry::sphere(center, 0.2, mat),
-                    center2,
+                world.push(Box::new(AabbCache::new(
+                    geometry::moving_sphere(geometry::sphere(center, 0.2, mat), center2, 0.0..1.0),
                     0.0..1.0,
                 )));
             } else {
-                world.push(Box::new(geometry::sphere(center, 0.2, mat)));
+                world.push(Box::new(AabbCache::new(
+                    geometry::sphere(center, 0.2, mat),
+                    0.0..1.0,
+                )));
             }
         }
     }
@@ -109,7 +111,7 @@ fn random_scene(rng: &mut impl Rng) -> Vec<Box<dyn Hittable>> {
 fn main() {
     // Image
     let aspect_ratio = 16.0 / 9.0;
-    let samples_per_pixel = 128;
+    let samples_per_pixel = 16;
     let image_width = 1280u32;
     let image_height = (image_width as f32 / aspect_ratio) as u32;
 

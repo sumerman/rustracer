@@ -2,10 +2,12 @@ mod camera;
 pub mod geometry;
 mod hittable;
 mod material;
+mod aabb;
 
 pub use camera::*;
 pub use hittable::*;
 pub use material::*;
+pub use aabb::*;
 
 use crate::color_output::*;
 use crate::math::*;
