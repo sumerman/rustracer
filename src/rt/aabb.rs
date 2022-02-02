@@ -2,21 +2,54 @@ use crate::math::*;
 
 use super::Hittable;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Aabb {
     pub min: Point3,
     pub max: Point3,
+    infinite: bool,
 }
 
 impl Aabb {
-    pub fn surrounding_box(self, other: Aabb) -> Aabb {
+    pub fn new(min: Point3, max: Point3) -> Self {
         Aabb {
-            min: self.min.min(other.min),
-            max: self.max.max(other.max),
+            min,
+            max,
+            infinite: false,
         }
     }
 
+    pub fn infinite() -> Self {
+        Aabb {
+            min: Vec3::splat(f32::NEG_INFINITY),
+            max: Vec3::splat(f32::INFINITY),
+            infinite: true,
+        }
+    }
+
+    pub fn surrounding_box(self, other: Self) -> Self {
+        Self {
+            min: self.min.min(other.min),
+            max: self.max.max(other.max),
+            infinite: self.infinite || other.infinite,
+        }
+    }
+
+    pub fn doubled_centroid(&self) -> Vec3 {
+        self.max - self.min
+    }
+
+    pub fn surface_area(&self) -> f32 {
+        let measurements = self.max - self.min;
+        2.0 * (measurements.x * measurements.y
+            + measurements.y * measurements.z
+            + measurements.z * measurements.x)
+    }
+
     pub fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> bool {
+        if self.infinite {
+            return true;
+        }
+
         let inv_d = 1.0 / r.dir;
         let t00 = (self.min - r.orig) * inv_d;
         let t01 = (self.max - r.orig) * inv_d;
@@ -35,12 +68,16 @@ impl Aabb {
 
 pub struct AabbCache<T: Hittable> {
     pub object: T,
-    aabb: Option<Aabb>,
+    aabb: Aabb,
 }
 
 impl<T: Hittable> AabbCache<T> {
+    #[allow(dead_code)]
     pub fn new(object: T, time_interval: std::ops::Range<f32>) -> Self {
-        let mut res = AabbCache { object, aabb: None };
+        let mut res = AabbCache {
+            object,
+            aabb: Aabb::infinite(),
+        };
         res.aabb = res.object.bounding_box(time_interval);
         res
     }
@@ -51,7 +88,7 @@ impl<T: Hittable> Hittable for AabbCache<T> {
         self.object.hit(r, t_min, t_max)
     }
 
-    fn bounding_box(&self, _time_interval: std::ops::Range<f32>) -> Option<Aabb> {
+    fn bounding_box(&self, _time_interval: std::ops::Range<f32>) -> Aabb {
         self.aabb
     }
 }

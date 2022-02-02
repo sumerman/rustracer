@@ -59,11 +59,11 @@ impl Hittable for Sphere {
         None
     }
 
-    fn bounding_box(&self, _time_interval: Range<f32>) -> Option<Aabb> {
-        Some(Aabb {
-            min: self.center - Vec3::splat(self.radius),
-            max: self.center + Vec3::splat(self.radius),
-        })
+    fn bounding_box(&self, _time_interval: Range<f32>) -> Aabb {
+        Aabb::new(
+            self.center - Vec3::splat(self.radius),
+            self.center + Vec3::splat(self.radius),
+        )
     }
 }
 
@@ -76,12 +76,7 @@ impl Hittable for MovingSphere {
                         start: time0,
                         end: time1,
                     },
-                sphere:
-                    Sphere {
-                        center,
-                        radius: _,
-                        material: _,
-                    },
+                sphere: Sphere { center, .. },
                 center1,
             } => ((r.time - time0) / (time1 - time0)) * (center1 - center),
         };
@@ -92,13 +87,13 @@ impl Hittable for MovingSphere {
             .map(|h| Hit::new(h.point + motion, h.normal + motion, h.material, h.t))
     }
 
-    fn bounding_box(&self, time_interval: Range<f32>) -> Option<Aabb> {
-        let offest_aabb = Aabb {
-            min: self.center1 - Vec3::splat(self.sphere.radius),
-            max: self.center1 + Vec3::splat(self.sphere.radius),
-        };
+    fn bounding_box(&self, time_interval: Range<f32>) -> Aabb {
+        let offest_aabb = Aabb::new(
+            self.center1 - Vec3::splat(self.sphere.radius),
+            self.center1 + Vec3::splat(self.sphere.radius),
+        );
         self.sphere
             .bounding_box(time_interval)
-            .map(|aabb| aabb.surrounding_box(offest_aabb))
+            .surrounding_box(offest_aabb)
     }
 }

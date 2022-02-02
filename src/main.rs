@@ -63,15 +63,13 @@ fn random_scene(rng: &mut impl Rng) -> Vec<Box<dyn Hittable>> {
             if mat_prob < 0.8 {
                 let center2 =
                     center + Vec3::new(0.0, rng.sample::<f32, _>(StandardDist) * 0.5, 0.0);
-                world.push(Box::new(AabbCache::new(
-                    geometry::moving_sphere(geometry::sphere(center, 0.2, mat), center2, 0.0..1.0),
+                world.push(Box::new(geometry::moving_sphere(
+                    geometry::sphere(center, 0.2, mat),
+                    center2,
                     0.0..1.0,
                 )));
             } else {
-                world.push(Box::new(AabbCache::new(
-                    geometry::sphere(center, 0.2, mat),
-                    0.0..1.0,
-                )));
+                world.push(Box::new(geometry::sphere(center, 0.2, mat)));
             }
         }
     }
@@ -117,7 +115,7 @@ fn main() {
 
     // World
     let mut world_rng = SmallRng::seed_from_u64(0xEDADBEEF);
-    let world = random_scene(&mut world_rng);
+    let world = Bvh::new(random_scene(&mut world_rng), 0.0..1.0);
 
     // Camera
     let camera = Camera::new(
@@ -158,7 +156,7 @@ fn main() {
                         let v = (j as f32 + v_offset) / (image_height - 1) as f32;
 
                         r = camera.get_ray(u, v, &mut rng);
-                        color += ray_color(r, world.as_slice(), &mut rng);
+                        color += ray_color(r, &world, &mut rng);
                     }
                     output_color(color * color_scale)
                 })

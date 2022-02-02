@@ -3,11 +3,13 @@ pub mod geometry;
 mod hittable;
 mod material;
 mod aabb;
+mod bvh;
 
 pub use camera::*;
 pub use hittable::*;
 pub use material::*;
 pub use aabb::*;
+pub use bvh::*;
 
 use crate::color_output::*;
 use crate::math::*;
