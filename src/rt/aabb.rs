@@ -1,7 +1,5 @@
 use crate::math::*;
 
-use super::Hittable;
-
 #[derive(Clone, Copy, Debug)]
 pub struct Aabb {
     pub min: Point3,
@@ -63,32 +61,5 @@ impl Aabb {
         let t_max_1 = t_max.min(t1.min_element());
 
         t_max_1 > t_min_1
-    }
-}
-
-pub struct AabbCache<T: Hittable> {
-    pub object: T,
-    aabb: Aabb,
-}
-
-impl<T: Hittable> AabbCache<T> {
-    #[allow(dead_code)]
-    pub fn new(object: T, time_interval: std::ops::Range<f32>) -> Self {
-        let mut res = AabbCache {
-            object,
-            aabb: Aabb::infinite(),
-        };
-        res.aabb = res.object.bounding_box(time_interval);
-        res
-    }
-}
-
-impl<T: Hittable> Hittable for AabbCache<T> {
-    fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<super::Hit> {
-        self.object.hit(r, t_min, t_max)
-    }
-
-    fn bounding_box(&self, _time_interval: std::ops::Range<f32>) -> Aabb {
-        self.aabb
     }
 }
