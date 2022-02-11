@@ -190,12 +190,12 @@ impl<T: Hittable> Hittable for Bvh<T> {
             };
             match current {
                 BvhNode::Node { aabb, children, .. } => {
-                    if aabb.hit(r, t_min, t_max) {
+                    if aabb.hit(r, t_min, closest_hit) {
                         nodes_to_try.extend(children.iter().map(|c| c))
                     }
                 }
                 BvhNode::Leaf { aabb, object_idx } => {
-                    if aabb.hit(r, t_min, t_max) {
+                    if aabb.hit(r, t_min, closest_hit) {
                         let object = &self.objects[*object_idx];
                         let current_hit = object.hit(r, t_min, closest_hit);
                         if let Some(ref hit) = current_hit {
