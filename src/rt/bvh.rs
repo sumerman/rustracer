@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::ops::Range;
 
 use crate::math::*;
@@ -7,51 +8,45 @@ use super::Hittable;
 
 pub struct Bvh<T: Hittable> {
     objects: Vec<T>,
+    descriptors: Vec<HittableDescriptor>,
     nodes: BvhNode,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
+struct HittableDescriptor {
+    object_idx: usize,
+    aabb: Aabb,
+}
+
+#[derive(Clone, Debug)]
 enum BvhNode {
     Node {
         aabb: Aabb,
-        leafs_count: usize,
-        children: Vec<BvhNode>,
+        left: Box<BvhNode>,
+        right: Box<BvhNode>,
     },
-    Leaf {
+    Partition {
         aabb: Aabb,
-        object_idx: usize,
+        range: Range<usize>,
     },
 }
 
 impl BvhNode {
-    fn new_node(children: Vec<BvhNode>) -> Self {
-        let root_box = children
+    fn aabb(&self) -> Aabb {
+        match self {
+            Self::Partition { aabb, .. } => *aabb,
+            Self::Node { aabb, .. } => *aabb,
+        }
+    }
+
+    fn new_partition(objects: &[&HittableDescriptor], range: Range<usize>) -> Self {
+        let aabb = objects[range.start..range.end]
             .iter()
-            .map(|x| x.aabb())
+            .map(|x| x.aabb)
             .reduce(|a, b| a.surrounding_box(b))
             .unwrap_or_else(|| Aabb::infinite());
 
-        let leafs_count = children.iter().fold(0, |acc, c| acc + c.objects_count());
-
-        BvhNode::Node {
-            children,
-            leafs_count,
-            aabb: root_box,
-        }
-    }
-
-    fn objects_count(&self) -> usize {
-        match self {
-            Self::Leaf { .. } => 1,
-            Self::Node { leafs_count, .. } => *leafs_count,
-        }
-    }
-
-    fn aabb(&self) -> Aabb {
-        match self {
-            Self::Leaf { aabb, .. } => *aabb,
-            Self::Node { aabb, .. } => *aabb,
-        }
+        Self::Partition { aabb, range }
     }
 
     /*
@@ -60,119 +55,183 @@ impl BvhNode {
         - Probability of a ray hitting a node is proportional to its surface area
         - Cost of traversing a node depends on the number of objects in its leaves
         - To split a node, find the hyperplane that minimizes SA(L)*N(L) + SA(R)*N(R) where:
-            - SA(L) and SA(R) are the surface areas of the AABBs that enclose objects whose 
+            - SA(L) and SA(R) are the surface areas of the AABBs that enclose objects whose
               centroids are on the left/right of the split hyperplane.
             - N(L) and N(R) are the counts of objects left and right of the split hyperplane
 
-    For details see:    
+    For details see:
     - https://graphics.cg.uni-saarland.de/courses/cg1-2018/slides/Building_good_BVHs.pdf
-    - https://www.cg.tuwien.ac.at/courses/Rendering/2020/slides/01_spatial_acceleration.pdf 
+    - https://www.cg.tuwien.ac.at/courses/Rendering/2020/slides/01_spatial_acceleration.pdf
      */
-    fn sah_sweep_split(mut self) -> Self {
-        let mut nodes_to_split: Vec<&mut BvhNode> = vec![&mut self];
+    fn sah_sweep_build(objects: &mut [HittableDescriptor]) -> Self {
+        let mut left_ids: HashSet<usize> = HashSet::new();
+        let mut buffer: Vec<&HittableDescriptor> = Vec::with_capacity(objects.len());
+        let mut sa_sums: Vec<f32> = Vec::with_capacity(objects.len());
+        let mut axes: [Vec<&HittableDescriptor>; 3] = [
+            objects.iter().collect(),
+            objects.iter().collect(),
+            objects.iter().collect(),
+        ];
+
+        // Sort descriptors along each of the axis according to their centroids
+        (0..2).for_each(|axis| {
+            axes[axis].sort_unstable_by(|a, b| {
+                let al = a.aabb.doubled_centroid()[axis];
+                let bl = b.aabb.doubled_centroid()[axis];
+                al.partial_cmp(&bl).unwrap_or_else(|| {
+                    if al.is_nan() && bl.is_nan() {
+                        core::cmp::Ordering::Equal
+                    } else if al.is_nan() {
+                        core::cmp::Ordering::Greater
+                    } else {
+                        core::cmp::Ordering::Less
+                    }
+                })
+            });
+        });
+
+        // TODO split off NaN-s into its own node
+
+        let mut root_node = Self::new_partition(axes[0].as_slice(), 0..objects.len());
+        let mut partitions_to_split: Vec<&mut Self> = vec![&mut root_node];
         loop {
-            let current = match nodes_to_split.pop() {
+            let current = match partitions_to_split.pop() {
                 None => break,
                 Some(cur) => cur,
             };
-            if let BvhNode::Node { children, .. } = current {
-                if children.len() < 3 {
+            if let BvhNode::Partition {
+                range,
+                aabb: full_box,
+                ..
+            } = current
+            {
+                if range.len() < 3 {
                     continue;
                 }
-                // This loop does a bunch of allocations and re-sorts per axis,
-                // but should do for now (100-1000 of objects)
-                // For substantially larger scenes it'd be better to switch to binning.
-                let (_sa, left, right) = (0..2)
+                let (_sa, best_axis, pivot) = (0..2)
                     .map(|axis| {
-                        children.sort_unstable_by(|a, b| {
-                            let al = a.aabb().doubled_centroid()[axis];
-                            let bl = b.aabb().doubled_centroid()[axis];
-                            al.partial_cmp(&bl).unwrap_or_else(|| {
-                                if al.is_nan() && bl.is_nan() {
-                                    core::cmp::Ordering::Equal
-                                } else if al.is_nan() {
-                                    core::cmp::Ordering::Greater
-                                } else {
-                                    core::cmp::Ordering::Less
-                                }
-                            })
-                        });
+                        let in_partition = &axes[axis][range.start..range.end];
+                        sa_sums.resize(in_partition.len(), 0.0);
                         // Merging an AABB with itself won't change its surface area
-                        let mut aabb_acc = children.first().map(|c| c.aabb()).unwrap();
+                        let mut aabb_acc = in_partition.first().map(|c| c.aabb).unwrap();
                         let mut n_acc = 0.0;
-                        let mut sa_sums = vec![0.0; children.len()];
                         // sweep left-to-right and compute running
                         // weighted surface area sums SA(L)*N(L)
                         // of object i and the objects left of it.
-                        for i in 0..children.len() {
-                            n_acc += children[i].objects_count() as f32;
-                            aabb_acc = aabb_acc.surrounding_box(children[i].aabb());
+                        for i in 0..in_partition.len() {
+                            n_acc += 1.0;
+                            aabb_acc = aabb_acc.surrounding_box(in_partition[i].aabb);
                             sa_sums[i] += aabb_acc.surface_area() * n_acc;
                         }
-                        // Sweep right-to-left and compute running 
-                        // weighted surface area sums 
-                        // of objects right of an i-th object, 
+                        // Sweep right-to-left and compute running
+                        // weighted surface area sums
+                        // of objects right of an i-th object,
                         // excluding the i-th object itself.
                         // SA(R)*N(R)
-                        aabb_acc = children.last().map(|c| c.aabb()).unwrap();
+                        aabb_acc = in_partition.last().map(|c| c.aabb).unwrap();
                         n_acc = 0.0;
-                        for i in (0..children.len()).rev() {
+                        for i in (0..in_partition.len()).rev() {
                             let j = i + 1;
-                            if j < children.len() {
-                                n_acc += children[j].objects_count() as f32;
-                                aabb_acc = aabb_acc.surrounding_box(children[j].aabb());
+                            if j < in_partition.len() {
+                                n_acc += 1.0;
+                                aabb_acc = aabb_acc.surrounding_box(in_partition[j].aabb);
                                 // add SA of all objects to the right from the i-th place
                                 sa_sums[i] += aabb_acc.surface_area() * n_acc;
                             }
                         }
-                        // Find the split with the smallest (on this axis) 
-                        // associated surface area sums 
+                        // Find the split with the smallest (on this axis)
+                        // associated surface area sums
                         let (pivot, &sa_lr) = sa_sums
                             .iter()
                             .enumerate()
                             .filter(|(_, &sa)| !sa.is_nan())
                             .min_by(|(_, sa1), (_, sa2)| sa1.partial_cmp(sa2).unwrap())
                             .unwrap();
-                        // Since pivot is an index in the children array, it's always < children.len()
-                        // Therefore pivot + 1 could be at most children.len().
-                        // It will produce an empty right side though.
-                        let (left, right) = children.split_at_mut(pivot + 1);
-                        (sa_lr, left.to_vec(), right.to_vec())
+                        (sa_lr, axis, pivot)
                     })
                     // Find the best split across all 3 axes
                     .min_by(|(sa1, _, _), (sa2, _, _)| sa1.partial_cmp(sa2).unwrap())
-                    .unwrap();
+                    .unwrap(); // there are exactly 3 elements, minimum exists
 
-                if right.is_empty() {
+                if pivot + 1 >= range.len() {
                     // current node couldn't be split, leave it alone
                     // otherwise it'll cause an infinite loop
                     continue;
                 }
-                children.clear();
-                children.push(BvhNode::new_node(left));
-                children.push(BvhNode::new_node(right));
-                nodes_to_split.extend(children.iter_mut());
+
+                left_ids.clear();
+                axes[best_axis][range.start..range.end]
+                    .iter()
+                    .enumerate()
+                    .for_each(|(i, desc)| {
+                        if i <= pivot {
+                            left_ids.insert(desc.object_idx);
+                        }
+                    });
+
+                axes.iter_mut().enumerate().for_each(|(axis_id, axis)| {
+                    // The objects on the "best axis" are already partitioned the way we need.
+                    // For all other axis we replicate this partitioning, while preserving relative order.
+                    if axis_id != best_axis {
+                        buffer.clear();
+                        let partition = &mut axis[range.start..range.end];
+                        partition.iter().for_each(|desc| {
+                            if left_ids.contains(&desc.object_idx) {
+                                buffer.push(desc)
+                            }
+                        });
+                        partition.iter().for_each(|desc| {
+                            if !left_ids.contains(&desc.object_idx) {
+                                buffer.push(desc)
+                            }
+                        });
+                        partition.swap_with_slice(buffer.as_mut_slice());
+                    }
+                });
+
+                let pivot = range.start + pivot;
+                let left_partition =
+                    Self::new_partition(axes[0].as_slice(), range.start..(pivot + 1));
+                let right_partition =
+                    Self::new_partition(axes[0].as_slice(), (pivot + 1)..range.end);
+                *current = Self::Node {
+                    aabb: *full_box,
+                    left: Box::new(left_partition),
+                    right: Box::new(right_partition),
+                };
+            }
+            if let Self::Node { left, right, .. } = current {
+                partitions_to_split.push(left);
+                partitions_to_split.push(right);
             }
         }
-        self
+
+        let mut partitioned_objects: Vec<HittableDescriptor> =
+            axes[0].iter().map(|desc| (*desc).clone()).collect();
+        objects.swap_with_slice(partitioned_objects.as_mut_slice());
+
+        root_node
     }
 }
 
 impl<T: Hittable> Bvh<T> {
     pub fn new(scene_objects: Vec<T>, time_interval: Range<f32>) -> Self {
         let objects = scene_objects;
-        let leafs: Vec<BvhNode> = objects
+        let mut descriptors: Vec<HittableDescriptor> = objects
             .iter()
             .enumerate()
-            .map(|(idx, o)| BvhNode::Leaf {
+            .map(|(idx, o)| HittableDescriptor {
                 aabb: o.bounding_box(time_interval.clone()),
                 object_idx: idx,
             })
             .collect();
 
+        let root_node = BvhNode::sah_sweep_build(descriptors.as_mut_slice());
+
         Bvh {
             objects,
-            nodes: BvhNode::new_node(leafs).sah_sweep_split(),
+            descriptors,
+            nodes: root_node,
         }
     }
 }
@@ -189,18 +248,25 @@ impl<T: Hittable> Hittable for Bvh<T> {
                 Some(cur) => cur,
             };
             match current {
-                BvhNode::Node { aabb, children, .. } => {
+                BvhNode::Node {
+                    aabb, left, right, ..
+                } => {
                     if aabb.hit(r, t_min, t_max) {
-                        nodes_to_try.extend(children.iter().map(|c| c))
+                        nodes_to_try.push(left);
+                        nodes_to_try.push(right);
                     }
                 }
-                BvhNode::Leaf { aabb, object_idx } => {
+                BvhNode::Partition { aabb, range } => {
                     if aabb.hit(r, t_min, t_max) {
-                        let object = &self.objects[*object_idx];
-                        let current_hit = object.hit(r, t_min, closest_hit);
-                        if let Some(ref hit) = current_hit {
-                            closest_hit = hit.t;
-                            final_hit = current_hit;
+                        for d in self.descriptors[range.start..range.end].iter() {
+                            if d.aabb.hit(r, t_min, closest_hit) {
+                                let object = &self.objects[d.object_idx];
+                                let current_hit = object.hit(r, t_min, closest_hit);
+                                if let Some(ref hit) = current_hit {
+                                    closest_hit = hit.t;
+                                    final_hit = current_hit;
+                                }
+                            }
                         }
                     }
                 }
