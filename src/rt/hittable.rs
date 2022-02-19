@@ -1,5 +1,8 @@
-use crate::math::*;
+use std::ops::Range;
+
+use super::aabb::*;
 use super::material::*;
+use crate::math::*;
 
 #[derive(PartialEq)]
 pub enum Face {
@@ -38,11 +41,19 @@ impl Hit<'_> {
 
 pub trait Hittable: Send + Sync {
     fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit>;
+
+    fn bounding_box(&self, _time_interval: Range<f32>) -> Aabb {
+        Aabb::infinite()
+    }
 }
 
 impl Hittable for Box<dyn Hittable> {
     fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit> {
         (**self).hit(r, t_min, t_max)
+    }
+
+    fn bounding_box(&self, time_interval: Range<f32>) -> Aabb {
+        (**self).bounding_box(time_interval)
     }
 }
 
@@ -52,6 +63,9 @@ impl<T: Hittable> Hittable for [T] {
         let mut closest_hit = t_max;
 
         for o in self {
+            if !o.bounding_box(r.time..r.time).hit(&r, t_min, t_max) {
+                continue;
+            }
             let current_hit = o.hit(r, t_min, closest_hit);
             if let Some(ref hit) = current_hit {
                 closest_hit = hit.t;
@@ -60,5 +74,12 @@ impl<T: Hittable> Hittable for [T] {
         }
 
         final_hit
+    }
+
+    fn bounding_box(&self, time_interval: Range<f32>) -> Aabb {
+        self.iter()
+            .map(|h| h.bounding_box(time_interval.clone()))
+            .reduce(Aabb::surrounding_box)
+            .unwrap_or(Aabb::infinite())
     }
 }

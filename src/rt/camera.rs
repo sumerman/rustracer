@@ -1,5 +1,7 @@
+use std::ops::Range;
+
 use crate::math::*;
-use rand::prelude::*;
+use rand::{distributions::Uniform, prelude::*};
 
 pub struct Camera {
     origin: Point3,
@@ -9,6 +11,7 @@ pub struct Camera {
     lens_radius: f32,
     u: Vec3,
     v: Vec3,
+    time_distribution: Uniform<f32>,
 }
 
 impl Camera {
@@ -18,6 +21,7 @@ impl Camera {
         vup: Vec3,
         fov: f32,
         aspect_ratio: f32,
+        time_interval: Range<f32>,
         aperture: f32,
         focus_dist: Option<f32>,
     ) -> Self {
@@ -38,6 +42,7 @@ impl Camera {
             vertical,
             u,
             v,
+            time_distribution: Uniform::new(time_interval.start, time_interval.end),
             lens_radius: aperture / 2.0,
             upper_left_corner: origin - horizontal / 2.0 - vertical / 2.0 - w * focus_dist,
         }
@@ -46,9 +51,11 @@ impl Camera {
     pub fn get_ray(&self, s: f32, t: f32, rng: &mut impl Rng) -> Ray {
         let rd = self.lens_radius * random_in_unit_disk(rng);
         let offset = self.u * rd.x + self.v * rd.y;
+        let time = rng.sample(self.time_distribution);
         Ray::new(
             self.origin + offset,
             self.upper_left_corner + s * self.horizontal + t * self.vertical - self.origin - offset,
+            time,
         )
     }
 }

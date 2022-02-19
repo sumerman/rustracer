@@ -2,15 +2,18 @@ pub type Point3 = glam::Vec3A;
 pub type Vec3 = glam::Vec3A;
 
 mod ray;
+
 pub use ray::Ray;
 
 use rand::prelude::*;
 
 use crate::color_output::Color;
 
+pub use rand::distributions::Standard as StandardDist;
+
 #[inline(always)]
 pub fn random_vec3(rng: &mut impl Rng, min: f32, max: f32) -> Vec3 {
-    let values: [f32; 3] = rng.sample(rand::distributions::Standard);
+    let values: [f32; 3] = rng.sample(StandardDist);
     (max - min) * Vec3::from_slice(&values) + Vec3::splat(min)
 }
 
@@ -21,7 +24,7 @@ pub fn random_on_unit_sphere(rng: &mut impl Rng) -> Vec3 {
 
 pub fn random_in_unit_disk(rng: &mut impl Rng) -> Vec3 {
     loop {
-        let values: [f32; 2] = rng.sample(rand::distributions::Standard);
+        let values: [f32; 2] = rng.sample(StandardDist);
         let vec = Vec3::new(values[0], values[1], 0.0);
         if vec.length_squared() >= 1.0 {
             continue;
