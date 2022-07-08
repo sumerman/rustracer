@@ -15,28 +15,16 @@ use crate::color_output::*;
 use crate::math::*;
 use rand::prelude::*;
 
-pub fn ray_color<T: Hittable + ?Sized>(mut r: Ray, world: &T, rng: &mut impl Rng) -> Color {
+pub fn ray_color<T: Hittable + ?Sized>(r: &mut Ray, world: &T, rng: &mut impl Rng) -> Color {
     let white = Color::splat(1.0);
     let skyblue = Color::new(0.5, 0.7, 1.0);
-    let mut color = Color::ONE;
     let mut bounces = 0;
 
-    while let Some(hit) = world.hit(&r, 0.001, f32::INFINITY) {
-        if let Some(MaterialResponse {
-            attenuation: a,
-            new_ray,
-        }) = hit.material.scatter(&r, &hit, rng)
-        {
-            color = attenuate(color, a);
-            r = new_ray;
-        } else {
-            color = Color::ZERO;
-            break;
-        }
+    while let Some(hit) = world.hit(r, 0.001, f32::INFINITY) {
+        *r = hit.material.scatter(r, &hit, rng);
 
         bounces += 1;
         if bounces > 50 {
-            color = Color::ZERO;
             break;
         }
     }
@@ -45,5 +33,5 @@ pub fn ray_color<T: Hittable + ?Sized>(mut r: Ray, world: &T, rng: &mut impl Rng
     let t = 0.5 * (unit_dir.y + 1.0);
     let env_color = white.lerp(skyblue, t);
 
-    color * env_color
+    attenuate(r.color, env_color)
 }

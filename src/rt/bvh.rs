@@ -11,46 +11,45 @@ pub struct Bvh<T: Hittable> {
 }
 
 #[derive(Debug, Clone)]
-enum BvhNode {
+enum BvhNodeValue {
     Node {
-        aabb: Aabb,
         leafs_count: usize,
         children: Vec<BvhNode>,
     },
     Leaf {
-        aabb: Aabb,
         object_idx: usize,
     },
+}
+
+#[derive(Debug, Clone)]
+struct BvhNode {
+    aabb: Aabb,
+    value: BvhNodeValue,
 }
 
 impl BvhNode {
     fn new_node(children: Vec<BvhNode>) -> Self {
         let root_box = children
             .iter()
-            .map(|x| x.aabb())
+            .map(|x| x.aabb)
             .reduce(|a, b| a.surrounding_box(b))
             .unwrap_or_else(|| Aabb::infinite());
 
         let leafs_count = children.iter().fold(0, |acc, c| acc + c.objects_count());
 
-        BvhNode::Node {
-            children,
-            leafs_count,
+        BvhNode {
             aabb: root_box,
+            value: BvhNodeValue::Node {
+                children,
+                leafs_count,
+            },
         }
     }
 
     fn objects_count(&self) -> usize {
-        match self {
-            Self::Leaf { .. } => 1,
-            Self::Node { leafs_count, .. } => *leafs_count,
-        }
-    }
-
-    fn aabb(&self) -> Aabb {
-        match self {
-            Self::Leaf { aabb, .. } => *aabb,
-            Self::Node { aabb, .. } => *aabb,
+        match self.value {
+            BvhNodeValue::Leaf { .. } => 1,
+            BvhNodeValue::Node { leafs_count, .. } => leafs_count,
         }
     }
 
@@ -60,22 +59,24 @@ impl BvhNode {
         - Probability of a ray hitting a node is proportional to its surface area
         - Cost of traversing a node depends on the number of objects in its leaves
         - To split a node, find the hyperplane that minimizes SA(L)*N(L) + SA(R)*N(R) where:
-            - SA(L) and SA(R) are the surface areas of the AABBs that enclose objects whose 
+            - SA(L) and SA(R) are the surface areas of the AABBs that enclose objects whose
               centroids are on the left/right of the split hyperplane.
             - N(L) and N(R) are the counts of objects left and right of the split hyperplane
 
-    For details see:    
+    For details see:
     - https://graphics.cg.uni-saarland.de/courses/cg1-2018/slides/Building_good_BVHs.pdf
-    - https://www.cg.tuwien.ac.at/courses/Rendering/2020/slides/01_spatial_acceleration.pdf 
+    - https://www.cg.tuwien.ac.at/courses/Rendering/2020/slides/01_spatial_acceleration.pdf
      */
     fn sah_sweep_split(mut self) -> Self {
-        let mut nodes_to_split: Vec<&mut BvhNode> = vec![&mut self];
+        let mut nodes_to_split: Vec<&mut BvhNode> = Vec::with_capacity(self.objects_count() / 2);
+        nodes_to_split.push(&mut self);
+
         loop {
             let current = match nodes_to_split.pop() {
                 None => break,
                 Some(cur) => cur,
             };
-            if let BvhNode::Node { children, .. } = current {
+            if let BvhNodeValue::Node { ref mut children, .. } = current.value {
                 if children.len() < 3 {
                     continue;
                 }
@@ -85,8 +86,8 @@ impl BvhNode {
                 let (_sa, left, right) = (0..2)
                     .map(|axis| {
                         children.sort_unstable_by(|a, b| {
-                            let al = a.aabb().doubled_centroid()[axis];
-                            let bl = b.aabb().doubled_centroid()[axis];
+                            let al = a.aabb.doubled_centroid()[axis];
+                            let bl = b.aabb.doubled_centroid()[axis];
                             al.partial_cmp(&bl).unwrap_or_else(|| {
                                 if al.is_nan() && bl.is_nan() {
                                     core::cmp::Ordering::Equal
@@ -98,7 +99,7 @@ impl BvhNode {
                             })
                         });
                         // Merging an AABB with itself won't change its surface area
-                        let mut aabb_acc = children.first().map(|c| c.aabb()).unwrap();
+                        let mut aabb_acc = children.first().map(|c| c.aabb).unwrap();
                         let mut n_acc = 0.0;
                         let mut sa_sums = vec![0.0; children.len()];
                         // sweep left-to-right and compute running
@@ -106,27 +107,27 @@ impl BvhNode {
                         // of object i and the objects left of it.
                         for i in 0..children.len() {
                             n_acc += children[i].objects_count() as f32;
-                            aabb_acc = aabb_acc.surrounding_box(children[i].aabb());
+                            aabb_acc = aabb_acc.surrounding_box(children[i].aabb);
                             sa_sums[i] += aabb_acc.surface_area() * n_acc;
                         }
-                        // Sweep right-to-left and compute running 
-                        // weighted surface area sums 
-                        // of objects right of an i-th object, 
+                        // Sweep right-to-left and compute running
+                        // weighted surface area sums
+                        // of objects right of an i-th object,
                         // excluding the i-th object itself.
                         // SA(R)*N(R)
-                        aabb_acc = children.last().map(|c| c.aabb()).unwrap();
+                        aabb_acc = children.last().map(|c| c.aabb).unwrap();
                         n_acc = 0.0;
                         for i in (0..children.len()).rev() {
                             let j = i + 1;
                             if j < children.len() {
                                 n_acc += children[j].objects_count() as f32;
-                                aabb_acc = aabb_acc.surrounding_box(children[j].aabb());
+                                aabb_acc = aabb_acc.surrounding_box(children[j].aabb);
                                 // add SA of all objects to the right from the i-th place
                                 sa_sums[i] += aabb_acc.surface_area() * n_acc;
                             }
                         }
-                        // Find the split with the smallest (on this axis) 
-                        // associated surface area sums 
+                        // Find the split with the smallest (on this axis)
+                        // associated surface area sums
                         let (pivot, &sa_lr) = sa_sums
                             .iter()
                             .enumerate()
@@ -164,9 +165,9 @@ impl<T: Hittable> Bvh<T> {
         let leafs: Vec<BvhNode> = objects
             .iter()
             .enumerate()
-            .map(|(idx, o)| BvhNode::Leaf {
+            .map(|(idx, o)| BvhNode {
                 aabb: o.bounding_box(time_interval.clone()),
-                object_idx: idx,
+                value: BvhNodeValue::Leaf { object_idx: idx },
             })
             .collect();
 
@@ -181,27 +182,27 @@ impl<T: Hittable> Hittable for Bvh<T> {
     fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<super::Hit> {
         let mut final_hit = None;
         let mut closest_hit = t_max;
-        let mut nodes_to_try: Vec<&BvhNode> = vec![&self.nodes];
+        let mut nodes_to_try: Vec<&BvhNode> = Vec::with_capacity(10);
+        nodes_to_try.push(&self.nodes);
 
         loop {
             let current = match nodes_to_try.pop() {
                 None => break,
                 Some(cur) => cur,
             };
-            match current {
-                BvhNode::Node { aabb, children, .. } => {
-                    if aabb.hit(r, t_min, closest_hit) {
-                        nodes_to_try.extend(children.iter().map(|c| c))
-                    }
+            if !current.aabb.hit(r, t_min, closest_hit) {
+                continue;
+            }
+            match current.value {
+                BvhNodeValue::Node { ref children, .. } => {
+                    nodes_to_try.extend(children.iter().map(|c| c))
                 }
-                BvhNode::Leaf { aabb, object_idx } => {
-                    if aabb.hit(r, t_min, closest_hit) {
-                        let object = &self.objects[*object_idx];
-                        let current_hit = object.hit(r, t_min, closest_hit);
-                        if let Some(ref hit) = current_hit {
-                            closest_hit = hit.t;
-                            final_hit = current_hit;
-                        }
+                BvhNodeValue::Leaf { object_idx } => {
+                    let object = &self.objects[object_idx];
+                    let current_hit = object.hit(r, t_min, closest_hit);
+                    if let Some(ref hit) = current_hit {
+                        closest_hit = hit.t;
+                        final_hit = current_hit;
                     }
                 }
             }
@@ -211,6 +212,6 @@ impl<T: Hittable> Hittable for Bvh<T> {
     }
 
     fn bounding_box(&self, _time_interval: std::ops::Range<f32>) -> Aabb {
-        self.nodes.aabb()
+        self.nodes.aabb
     }
 }

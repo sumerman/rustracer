@@ -4,12 +4,13 @@ use super::aabb::*;
 use super::material::*;
 use crate::math::*;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum Face {
     Front,
     Back,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Hit<'a> {
     pub point: Point3,
     pub normal: Vec3,

@@ -156,7 +156,7 @@ fn main() {
                         let v = (j as f32 + v_offset) / (image_height - 1) as f32;
 
                         r = camera.get_ray(u, v, &mut rng);
-                        color += ray_color(r, &world, &mut rng);
+                        color += ray_color(&mut r, &world, &mut rng);
                     }
                     output_color(color * color_scale)
                 })
